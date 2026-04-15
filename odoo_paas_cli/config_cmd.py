@@ -9,8 +9,7 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 
-from .config import load_config, save_config, get_api_key
-from .exceptions import EXIT_SUCCESS
+from .config import load_config, save_config
 
 app = typer.Typer(
     help="Manage CLI configuration.",
@@ -52,33 +51,19 @@ def config_show() -> None:
 
     out.print(f"[bold]Config file:[/bold] ~/.config/doo-cli/config.yaml\n")
     out.print(f"[bold]Version:[/bold] {config.get('version', 1)}")
-    out.print(f"[bold]Default profile:[/bold] {config.get('default_profile', 'default')}\n")
-
-    profiles = config.get("profiles", {})
-    if not profiles:
-        out.print("[dim]No profiles configured.[/dim]")
-        return
-
     table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold")
-    table.add_column("PROFILE")
     table.add_column("API KEY")
     table.add_column("API URL")
     table.add_column("DEFAULT INSTANCE")
     table.add_column("DEFAULT OUTPUT")
-
-    default_profile = config.get("default_profile", "default")
-
-    for name, data in profiles.items():
-        key = data.get("api_key", "")
-        masked = _mask_key(key) if key else "[dim]not set[/dim]"
-        is_default_marker = " [green](default)[/green]" if name == default_profile else ""
-        table.add_row(
-            f"{name}{is_default_marker}",
-            masked,
-            data.get("api_url", "[dim]not set[/dim]"),
-            data.get("default_instance", "[dim]not set[/dim]"),
-            data.get("default_output", "[dim]not set[/dim]"),
-        )
+    key = config.get("api_key", "")
+    masked = _mask_key(key) if key else "[dim]not set[/dim]"
+    table.add_row(
+        masked,
+        config.get("api_url", "[dim]not set[/dim]"),
+        config.get("default_instance", "[dim]not set[/dim]"),
+        config.get("default_output", "[dim]not set[/dim]"),
+    )
 
     out.print(table)
 
@@ -87,16 +72,15 @@ def _safe_config(config: dict[str, Any]) -> dict[str, Any]:
     """Return config with all API keys masked."""
     import copy
     safe = copy.deepcopy(config)
-    for profile_data in safe.get("profiles", {}).values():
-        key = profile_data.get("api_key", "")
-        if key:
-            profile_data["api_key"] = _mask_key(key)
+    key = safe.get("api_key", "")
+    if key:
+        safe["api_key"] = _mask_key(key)
     return safe
 
 
 @app.command("set")
 def config_set(
-    key: str = typer.Argument(help="Config key (e.g. api-url, default-profile, default-instance)"),
+    key: str = typer.Argument(help="Config key (e.g. api-url, default-instance, default-output)"),
     value: str = typer.Argument(help="Value to set"),
 ) -> None:
     """Set a configuration value."""
@@ -106,20 +90,7 @@ def config_set(
 
     normalized = key.replace("-", "_")
 
-    # Handle profile-scoped keys
-    profile_keys = {"api_url", "default_instance", "default_output", "api_key"}
-    top_level_keys = {"default_profile", "version"}
-
-    if normalized in top_level_keys:
-        config[normalized] = value
-    else:
-        # Store in the active profile
-        profile_name = state.profile or config.get("default_profile", "default")
-        if "profiles" not in config:
-            config["profiles"] = {}
-        if profile_name not in config["profiles"]:
-            config["profiles"][profile_name] = {}
-        config["profiles"][profile_name][normalized] = value
+    config[normalized] = value
 
     save_config(config)
 
@@ -139,23 +110,10 @@ def config_unset(
     stderr = Console(stderr=True, no_color=state.no_color)
 
     normalized = key.replace("-", "_")
-    top_level_keys = {"default_profile", "version"}
-
-    if normalized in top_level_keys:
-        if normalized in config:
-            config.pop(normalized)
-            save_config(config)
-            if not state.quiet:
-                out.print(f"[green]Unset[/green] [bold]{key}[/bold]")
-        else:
-            stderr.print(f"[yellow]Key '{key}' is not set.[/yellow]")
+    if normalized in config:
+        config.pop(normalized)
+        save_config(config)
+        if not state.quiet:
+            out.print(f"[green]Unset[/green] [bold]{key}[/bold]")
     else:
-        profile_name = state.profile or config.get("default_profile", "default")
-        profile_data = config.get("profiles", {}).get(profile_name, {})
-        if normalized in profile_data:
-            del profile_data[normalized]
-            save_config(config)
-            if not state.quiet:
-                out.print(f"[green]Unset[/green] [bold]{key}[/bold] from profile '[bold]{profile_name}[/bold]'")
-        else:
-            stderr.print(f"[yellow]Key '{key}' is not set in profile '{profile_name}'.[/yellow]")
+        stderr.print(f"[yellow]Key '{key}' is not set.[/yellow]")

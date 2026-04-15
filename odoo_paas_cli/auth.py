@@ -1,4 +1,4 @@
-"""Auth commands: login, logout, status, list-profiles, use-profile."""
+"""Auth commands: login, logout, status."""
 
 from __future__ import annotations
 
@@ -9,21 +9,19 @@ from typing import Annotated, Optional
 import httpx
 import typer
 from rich.console import Console
-from rich.table import Table
-from rich import box
-
 from .client import APIClient, USER_AGENT
 from .config import (
+    DEFAULT_API_URL,
     get_api_key,
     peek_api_url,
     load_config,
     save_config,
-    set_profile_key,
+    set_config_key,
 )
 from .exceptions import EXIT_SUCCESS, EXIT_ERROR, UsageError
 
 app = typer.Typer(
-    help="Manage authentication credentials and profiles.",
+    help="Manage authentication credentials.",
     no_args_is_help=True,
 )
 
@@ -43,12 +41,7 @@ def _get_state() -> "GlobalState":  # type: ignore[name-defined]
 def _resolve_api_url_for_login(configured_url: str | None) -> str:
     if configured_url:
         return configured_url
-    if not sys.stdin.isatty():
-        raise UsageError(
-            "API URL is not configured. Set `ODOO_PAAS_API_URL`, pass `--api-url`, "
-            "or run `doo-cli config set api-url <url>`."
-        )
-    return typer.prompt("API URL", default="https://api.paas.example.com").rstrip("/")
+    return DEFAULT_API_URL
 
 
 def _extract_login_error(html: str) -> str | None:
@@ -120,10 +113,6 @@ def auth_login(
         Optional[str],
         typer.Option("--api-key", help="Store an existing API key instead of logging in with email/password"),
     ] = None,
-    profile: Annotated[
-        Optional[str],
-        typer.Option("--profile", help="Profile name to store the key under"),
-    ] = None,
     email: Annotated[
         Optional[str],
         typer.Option("--email", help="Account email for user login"),
@@ -147,11 +136,10 @@ def auth_login(
 ) -> None:
     """Log in with email/password, generate an API key, and store it locally."""
     state = _get_state()
-    profile_name = profile or state.profile or "default"
     console = Console(no_color=state.no_color, stderr=True)
     out = Console(no_color=state.no_color)
     config = load_config()
-    configured_api_url = peek_api_url(config, profile_name, state.api_url)
+    configured_api_url = peek_api_url(config, state.api_url)
 
     if scope not in {"read_write", "read_only"}:
         console.print("[red]Error:[/red] --scope must be either `read_write` or `read_only`.")
@@ -209,20 +197,16 @@ def auth_login(
             console.print(f"[red]Error:[/red] API key validation failed: {exc}")
             raise typer.Exit(EXIT_ERROR)
 
-    set_profile_key(profile_name, "api_key", api_key)
-    set_profile_key(profile_name, "api_url", api_url)
+    set_config_key("api_key", api_key)
+    set_config_key("api_url", api_url)
 
     if not state.quiet:
         if generated_key:
             out.print(
-                f"[green]Logged in.[/green] Generated and stored an API key for profile "
-                f"'[bold]{profile_name}[/bold]' ({_mask_key(api_key)})."
+                f"[green]Logged in.[/green] Generated and stored an API key ({_mask_key(api_key)})."
             )
         else:
-            out.print(
-                f"[green]Logged in.[/green] API key stored in profile '[bold]{profile_name}[/bold]' "
-                f"({_mask_key(api_key)})."
-            )
+            out.print(f"[green]Logged in.[/green] API key stored ({_mask_key(api_key)}).")
         tenant = whoami.get("tenant", {}).get("slug")
         if tenant:
             out.print(f"Tenant: {tenant}")
@@ -230,104 +214,36 @@ def auth_login(
 
 @app.command("logout")
 def auth_logout(
-    profile: Annotated[
-        Optional[str],
-        typer.Option("--profile", help="Profile to log out of"),
-    ] = None,
 ) -> None:
-    """Remove stored credentials for a profile."""
+    """Remove stored credentials."""
     state = _get_state()
-    profile_name = profile or state.profile or "default"
-    console = Console(no_color=state.no_color, stderr=True)
     out = Console(no_color=state.no_color)
 
     config = load_config()
-    profiles = config.get("profiles", {})
-
-    if profile_name not in profiles:
-        console.print(f"[yellow]No profile named '{profile_name}' found.[/yellow]")
-        raise typer.Exit(EXIT_SUCCESS)
-
-    # Remove just the api_key, keep other profile settings
-    profiles[profile_name].pop("api_key", None)
+    config.pop("api_key", None)
     save_config(config)
 
     if not state.quiet:
-        out.print(f"[green]Logged out[/green] of profile '[bold]{profile_name}[/bold]'.")
+        out.print("[green]Logged out.[/green]")
 
 
 @app.command("status")
 def auth_status() -> None:
-    """Show the currently active API key and profile."""
+    """Show the current authentication status."""
     state = _get_state()
     config = load_config()
-    profile_name = state.profile or config.get("default_profile", "default")
-    api_key = get_api_key(config, profile_name)
-    api_url = peek_api_url(config, profile_name, state.api_url)
+    api_key = get_api_key(config)
+    api_url = peek_api_url(config, state.api_url)
 
     out = Console(no_color=state.no_color)
 
     if not api_key:
         out.print(
-            f"[yellow]Not logged in.[/yellow] No API key found for profile '[bold]{profile_name}[/bold]'.\n"
+            "[yellow]Not logged in.[/yellow] No API key stored locally.\n"
             "Run [bold]doo-cli auth login[/bold] to set up credentials."
         )
         raise typer.Exit(EXIT_ERROR)
 
     masked = _mask_key(api_key)
-    out.print(f"Profile:  [bold]{profile_name}[/bold]")
     out.print(f"API Key:  {masked}")
-    out.print(f"API URL:  {api_url or 'not configured'}")
-
-
-@app.command("list-profiles")
-def auth_list_profiles() -> None:
-    """List all named credential profiles."""
-    state = _get_state()
-    config = load_config()
-    profiles = config.get("profiles", {})
-    default_profile = config.get("default_profile", "default")
-
-    out = Console(no_color=state.no_color)
-
-    if not profiles:
-        out.print("No profiles configured.")
-        return
-
-    table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold")
-    table.add_column("PROFILE")
-    table.add_column("DEFAULT")
-    table.add_column("API KEY")
-    table.add_column("API URL")
-
-    for name, data in profiles.items():
-        key = data.get("api_key", "")
-        url = data.get("api_url", "")
-        is_default = "[green]yes[/green]" if name == default_profile else ""
-        masked = _mask_key(key) if key else "[dim]not set[/dim]"
-        table.add_row(name, is_default, masked, url)
-
-    out.print(table)
-
-
-@app.command("use-profile")
-def auth_use_profile(
-    name: Annotated[str, typer.Argument(help="Profile name to make default")],
-) -> None:
-    """Set the default profile."""
-    state = _get_state()
-    config = load_config()
-    out = Console(no_color=state.no_color)
-
-    if name not in config.get("profiles", {}):
-        Console(stderr=True, no_color=state.no_color).print(
-            f"[red]Error:[/red] Profile '[bold]{name}[/bold]' does not exist.\n"
-            "Run [bold]doo-cli auth list-profiles[/bold] to see available profiles."
-        )
-        raise typer.Exit(EXIT_ERROR)
-
-    config["default_profile"] = name
-    save_config(config)
-
-    if not state.quiet:
-        out.print(f"[green]Default profile set to '[bold]{name}[/bold]'.[/green]")
+    out.print(f"API URL:  {api_url}")

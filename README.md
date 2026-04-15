@@ -23,12 +23,6 @@ Or install directly from a release URL:
 pip install https://github.com/your-org/doo-cli/releases/download/v1.0.0/doo_cli-1.0.0-py3-none-any.whl
 ```
 
-Create a local `.env` from the example before running the CLI:
-
-```bash
-cp .env.example .env
-```
-
 ### pip
 
 ```bash
@@ -46,7 +40,7 @@ Use the repository action when you want `doo-cli` available inside a workflow jo
 
 The installed CLI version matches the Git ref you pin in `uses:`. For example, `@v1` installs the code from that action tag or branch.
 
-Provide credentials as workflow inputs so later `run:` steps can call `doo-cli` directly:
+For CI or other non-interactive automation, you can pass an API key override so later `run:` steps can call `doo-cli` without running `doo-cli auth login`:
 
 ```yaml
 - name: Install doo-cli
@@ -54,7 +48,7 @@ Provide credentials as workflow inputs so later `run:` steps can call `doo-cli` 
   with:
     python-version: "3.12"
     api-key: ${{ secrets.ODOO_PAAS_API_KEY }}
-    api-url: https://api.paas.example.com
+    api-url: https://api.odoo.dalang.io
 
 - name: List instances
   run: doo-cli instances list
@@ -65,8 +59,8 @@ Supported action inputs:
 | Input | Default | Description |
 |------|---------|-------------|
 | `python-version` | `3.12` | Python runtime used during installation |
-| `api-key` | empty | Exports `ODOO_PAAS_API_KEY` for later steps |
-| `api-url` | empty | Exports `ODOO_PAAS_API_URL` for later steps |
+| `api-key` | empty | Optional CI-only API key override for later workflow steps |
+| `api-url` | empty | Optional API URL override for non-default environments |
 
 The repository also publishes release artifacts automatically whenever a Git tag such as `v1.0.0` is pushed.
 
@@ -81,9 +75,6 @@ pip install -e .
 ## Quick Start
 
 ```bash
-# Create local env file first
-cp .env.example .env
-
 # Log in with your account
 doo-cli auth login
 
@@ -108,19 +99,12 @@ doo-cli metrics snapshot --instance my-staging
 
 ## Authentication
 
-The CLI loads environment variables from a local `.env` file if present, then falls back to the shell environment and stored config in `~/.config/doo-cli/config.yaml`.
+The CLI uses `https://api.odoo.dalang.io` by default.
 
 | Method | Priority |
 |--------|----------|
 | `ODOO_PAAS_API_KEY` env var | Highest |
-| `--profile` flag | Next |
-| Default profile in config file | Lowest |
-
-Minimum `.env` example:
-
-```dotenv
-ODOO_PAAS_API_URL=https://api.paas.example.com
-```
+| Stored local config | Lowest |
 
 ```bash
 # Interactive login (prompts for email/password and stores a generated API key)
@@ -132,20 +116,8 @@ doo-cli auth login --email you@example.com --password "$PASSWORD"
 # Import an existing API key
 doo-cli auth login --api-key "$MY_KEY"
 
-# Named profiles
-doo-cli auth login --profile client-acme
-doo-cli instances list --profile client-acme
-
-`ODOO_PAAS_PROFILE` is optional and only useful if you want the CLI to pick a non-default saved profile from your shell environment.
-
 # Check auth status
 doo-cli auth status
-
-# List all profiles
-doo-cli auth list-profiles
-
-# Switch default profile
-doo-cli auth use-profile client-acme
 ```
 
 ## Command Reference
@@ -157,8 +129,7 @@ Every command accepts these flags:
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--output FORMAT` | `-o` | `table` (default), `json`, `yaml` |
-| `--profile NAME` | | Named credential profile |
-| `--api-url URL` | | Override API base URL |
+| `--api-url URL` | | Override the default API base URL |
 | `--quiet` | `-q` | Suppress non-essential output |
 | `--verbose` | `-v` | Emit debug info to stderr |
 | `--no-color` | | Disable color output |
@@ -238,8 +209,7 @@ doo-cli metrics watch --instance my-prod --interval 5s
 doo-cli config show
 
 # Set values
-doo-cli config set api-url https://api.paas.example.com
-doo-cli config set default-profile my-profile
+doo-cli config set api-url https://api.odoo.dalang.io
 doo-cli config set default-instance my-prod
 doo-cli config set default-output json
 
@@ -252,7 +222,6 @@ doo-cli config unset default-instance
 The CLI is safe for non-interactive environments. In CI:
 
 1. Set `ODOO_PAAS_API_KEY`
-2. Set `ODOO_PAAS_API_URL`
 2. Use `--confirm` for destructive operations (stop, delete)
 3. Use `--output json` and `--quiet` for machine-readable output
 
@@ -262,7 +231,7 @@ The CLI is safe for non-interactive environments. In CI:
   uses: your-org/doo-cli@v1
   with:
     api-key: ${{ secrets.ODOO_PAAS_API_KEY }}
-    api-url: ${{ vars.ODOO_PAAS_API_URL }}
+    api-url: https://api.odoo.dalang.io
 
 - name: Provision staging instance
   run: |
@@ -301,8 +270,7 @@ The CLI is safe for non-interactive environments. In CI:
 | Variable | Description |
 |----------|-------------|
 | `ODOO_PAAS_API_KEY` | API key override for CI or non-interactive automation |
-| `ODOO_PAAS_PROFILE` | Optional override for the active saved profile |
-| `ODOO_PAAS_API_URL` | Override API base URL |
+| `ODOO_PAAS_API_URL` | Override the default API base URL |
 | `NO_COLOR` | Disable color output (https://no-color.org/) |
 
 ## Config File
@@ -311,28 +279,8 @@ Location: `~/.config/doo-cli/config.yaml` (permissions `0600`)
 
 ```yaml
 version: 1
-default_profile: default
-profiles:
-  default:
-    api_key: your-api-key-here
-    api_url: https://api.paas.example.com
-    default_instance: my-prod
-    default_output: table
-  client-acme:
-    api_key: acme-api-key
-    api_url: https://api.paas.example.com
-```
-
-## Pointing at a Local Dev Server
-
-```bash
-# Via flag
-doo-cli --api-url https://api.paas.example.com instances list
-
-# Via env var
-export ODOO_PAAS_API_URL=https://api.paas.example.com
-doo-cli instances list
-
-# Via config
-doo-cli config set api-url https://api.paas.example.com
+api_key: your-api-key-here
+api_url: https://api.odoo.dalang.io
+default_instance: my-prod
+default_output: table
 ```

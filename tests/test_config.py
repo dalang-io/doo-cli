@@ -1,23 +1,18 @@
 from __future__ import annotations
 
-import pytest
-
 from odoo_paas_cli.config import get_api_url, peek_api_url
-from odoo_paas_cli.exceptions import UsageError
+from odoo_paas_cli.config import DEFAULT_API_URL
 
 
 def test_get_api_url_prefers_environment(monkeypatch):
-    monkeypatch.setenv("ODOO_PAAS_API_URL", "https://env.example.com/api/")
+    url = get_api_url({"api_url": "https://config.example.com/api"}, override="https://override.example.com/api/")
 
-    url = get_api_url({"profiles": {"default": {"api_url": "https://config.example.com/api"}}})
-
-    assert url == "https://env.example.com/api"
+    assert url == "https://override.example.com/api"
 
 
-def test_get_api_url_raises_when_missing():
-    with pytest.raises(UsageError):
-        get_api_url({"profiles": {"default": {}}})
+def test_get_api_url_uses_default_when_missing():
+    assert get_api_url({}) == DEFAULT_API_URL
 
 
-def test_peek_api_url_returns_none_when_missing():
-    assert peek_api_url({"profiles": {"default": {}}}) is None
+def test_peek_api_url_returns_default_when_missing():
+    assert peek_api_url({}) == DEFAULT_API_URL

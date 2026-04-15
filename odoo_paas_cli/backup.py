@@ -22,8 +22,8 @@ def _get_state() -> Any:
 
 def _make_client(state: Any) -> APIClient:
     config = load_config()
-    api_key = get_api_key(config, state.profile)
-    api_url = get_api_url(config, state.profile, state.api_url)
+    api_key = get_api_key(config)
+    api_url = get_api_url(config, state.api_url)
     return APIClient(api_url, api_key, verbose=state.verbose, no_color=state.no_color)
 
 

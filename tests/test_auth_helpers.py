@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import pytest
-
 from odoo_paas_cli.auth import _extract_login_error, _resolve_api_url_for_login
-from odoo_paas_cli.exceptions import UsageError
+from odoo_paas_cli.config import DEFAULT_API_URL
 
 
 def test_extract_login_error_returns_message():
@@ -16,8 +14,5 @@ def test_resolve_api_url_uses_configured_value():
     assert _resolve_api_url_for_login("https://api.example.com/") == "https://api.example.com/"
 
 
-def test_resolve_api_url_requires_interactive_prompt(monkeypatch):
-    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-
-    with pytest.raises(UsageError):
-        _resolve_api_url_for_login(None)
+def test_resolve_api_url_uses_default_when_missing():
+    assert _resolve_api_url_for_login(None) == DEFAULT_API_URL

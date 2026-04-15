@@ -27,7 +27,6 @@ from .config_cmd import app as config_app
 
 class GlobalState:
     output: str = "table"
-    profile: str | None = None
     api_url: str | None = None
     quiet: bool = False
     verbose: bool = False
@@ -66,10 +65,6 @@ def main_callback(
         Optional[str],
         typer.Option("--output", "-o", help="Output format: table, json, yaml"),
     ] = None,
-    profile: Annotated[
-        Optional[str],
-        typer.Option("--profile", help="Named credential profile to use"),
-    ] = None,
     api_url: Annotated[
         Optional[str],
         typer.Option("--api-url", help="Override the API base URL"),
@@ -100,7 +95,6 @@ def main_callback(
 
     # Populate global state
     state.output = output or "table"
-    state.profile = profile
     state.api_url = api_url
     state.quiet = quiet
     state.verbose = verbose
@@ -109,10 +103,10 @@ def main_callback(
     if version:
         from .config import load_config, peek_api_url
         cfg = load_config()
-        url = peek_api_url(cfg, profile, api_url)
+        url = peek_api_url(cfg, api_url)
         console = Console(no_color=no_color)
         console.print(f"doo-cli version {__version__}")
-        console.print(f"API URL: {url or 'not configured'}")
+        console.print(f"API URL: {url}")
         raise typer.Exit(EXIT_SUCCESS)
 
     # If no subcommand given, show help
