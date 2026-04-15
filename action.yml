@@ -1,0 +1,54 @@
+name: Setup doo-cli
+description: Install doo-cli in a GitHub Actions workflow.
+
+inputs:
+  python-version:
+    description: Python version used to install and run doo-cli.
+    required: false
+    default: "3.12"
+  api-key:
+    description: Optional API key exported as ODOO_PAAS_API_KEY for later workflow steps.
+    required: false
+    default: ""
+  api-url:
+    description: Optional API base URL exported as ODOO_PAAS_API_URL for later workflow steps.
+    required: false
+    default: ""
+
+outputs:
+  command:
+    description: Installed CLI command name.
+    value: doo-cli
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install doo-cli
+      shell: bash
+      run: |
+        set -euo pipefail
+        python -m pip install --upgrade pip
+        python -m pip install "${{ github.action_path }}"
+
+    - name: Export authentication environment
+      if: ${{ inputs.api-key != '' || inputs.api-url != '' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -n "${{ inputs.api-key }}" ]; then
+          echo "ODOO_PAAS_API_KEY=${{ inputs.api-key }}" >> "$GITHUB_ENV"
+        fi
+        if [ -n "${{ inputs.api-url }}" ]; then
+          echo "ODOO_PAAS_API_URL=${{ inputs.api-url }}" >> "$GITHUB_ENV"
+        fi
+
+    - name: Verify installation
+      shell: bash
+      run: |
+        set -euo pipefail
+        doo-cli --version
