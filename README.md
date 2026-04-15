@@ -114,14 +114,12 @@ The CLI loads environment variables from a local `.env` file if present, then fa
 |--------|----------|
 | `ODOO_PAAS_API_KEY` env var | Highest |
 | `--profile` flag | Next |
-| `ODOO_PAAS_PROFILE` env var | Next |
 | Default profile in config file | Lowest |
 
 Minimum `.env` example:
 
 ```dotenv
 ODOO_PAAS_API_URL=https://api.paas.example.com
-ODOO_PAAS_PROFILE=default
 ```
 
 ```bash
@@ -137,6 +135,8 @@ doo-cli auth login --api-key "$MY_KEY"
 # Named profiles
 doo-cli auth login --profile client-acme
 doo-cli instances list --profile client-acme
+
+`ODOO_PAAS_PROFILE` is optional and only useful if you want the CLI to pick a non-default saved profile from your shell environment.
 
 # Check auth status
 doo-cli auth status
@@ -301,7 +301,7 @@ The CLI is safe for non-interactive environments. In CI:
 | Variable | Description |
 |----------|-------------|
 | `ODOO_PAAS_API_KEY` | API key override for CI or non-interactive automation |
-| `ODOO_PAAS_PROFILE` | Active profile name |
+| `ODOO_PAAS_PROFILE` | Optional override for the active saved profile |
 | `ODOO_PAAS_API_URL` | Override API base URL |
 | `NO_COLOR` | Disable color output (https://no-color.org/) |
 
