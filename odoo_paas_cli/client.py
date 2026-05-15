@@ -18,6 +18,7 @@ from .exceptions import (
 
 CLI_VERSION = "1.0.0"
 USER_AGENT = f"doo-cli/{CLI_VERSION}"
+API_PREFIX = "/api"
 
 
 class APIClient:
@@ -147,11 +148,17 @@ class APIClient:
 
     # --- Instance endpoints ---
 
-    def list_instances(self, status: str | None = None) -> list[dict[str, Any]]:
+    def list_instances(
+        self,
+        status: str | None = None,
+        environment: str | None = None,
+    ) -> list[dict[str, Any]]:
         params: dict[str, Any] = {}
         if status:
             params["status"] = status
-        result = self.get("/instances", params=params)
+        if environment:
+            params["environment"] = environment
+        result = self.get(f"{API_PREFIX}/instances/", params=params)
         if isinstance(result, dict):
             return result.get("instances", [])
         if isinstance(result, list):
@@ -159,65 +166,65 @@ class APIClient:
         return []
 
     def get_instance(self, instance_id: str) -> dict[str, Any]:
-        return self.get(f"/instances/{instance_id}")
+        return self.get(f"{API_PREFIX}/instances/{instance_id}")
 
     def get_instance_by_slug(self, slug: str) -> dict[str, Any]:
-        return self.get(f"/instances/by-slug/{slug}")
+        return self.get(f"{API_PREFIX}/instances/by-slug/{slug}")
 
     def create_instance(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self.post("/instances", json=payload)
+        return self.post(f"{API_PREFIX}/instances/", json=payload)
 
     def start_instance(self, instance_id: str) -> dict[str, Any]:
-        return self.post(f"/instances/{instance_id}/start")
+        return self.post(f"{API_PREFIX}/instances/{instance_id}/start")
 
     def stop_instance(self, instance_id: str) -> dict[str, Any]:
-        return self.post(f"/instances/{instance_id}/stop")
+        return self.post(f"{API_PREFIX}/instances/{instance_id}/stop")
 
     def delete_instance(self, instance_id: str) -> Any:
-        return self.delete(f"/instances/{instance_id}")
+        return self.delete(f"{API_PREFIX}/instances/{instance_id}")
 
     # --- Backup endpoints ---
 
     def list_backups(self, instance_id: str) -> list[dict[str, Any]]:
-        result = self.get(f"/instances/{instance_id}/backups")
+        result = self.get(f"{API_PREFIX}/instances/{instance_id}/backups")
         return result if isinstance(result, list) else []
 
     def create_backup(self, instance_id: str, label: str | None = None) -> dict[str, Any]:
         payload = {"label": label} if label else {}
-        result = self.post(f"/instances/{instance_id}/backups", json=payload)
+        result = self.post(f"{API_PREFIX}/instances/{instance_id}/backups", json=payload)
         return result if isinstance(result, dict) else {}
 
     def retry_backup(self, instance_id: str, backup_id: str) -> dict[str, Any]:
-        result = self.post(f"/instances/{instance_id}/backups/{backup_id}/retry")
+        result = self.post(f"{API_PREFIX}/instances/{instance_id}/backups/{backup_id}/retry")
         return result if isinstance(result, dict) else {}
 
     def delete_backup(self, instance_id: str, backup_id: str) -> Any:
-        return self.delete(f"/instances/{instance_id}/backups/{backup_id}")
+        return self.delete(f"{API_PREFIX}/instances/{instance_id}/backups/{backup_id}")
 
     def restore_backup(self, instance_id: str, backup_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        result = self.post(f"/instances/{instance_id}/backups/{backup_id}/restore", json=payload)
+        result = self.post(f"{API_PREFIX}/instances/{instance_id}/backups/{backup_id}/restore", json=payload)
         return result if isinstance(result, dict) else {}
 
     def get_restore(self, instance_id: str, restore_id: str) -> dict[str, Any]:
-        result = self.get(f"/instances/{instance_id}/restores/{restore_id}")
+        result = self.get(f"{API_PREFIX}/instances/{instance_id}/restores/{restore_id}")
         return result if isinstance(result, dict) else {}
 
     # --- Database insights endpoints ---
 
     def get_db_summary(self, instance_id: str) -> dict[str, Any]:
-        result = self.get(f"/instances/{instance_id}/database/summary")
+        result = self.get(f"{API_PREFIX}/instances/{instance_id}/database/summary")
         return result if isinstance(result, dict) else {}
 
     def get_db_slow_queries(self, instance_id: str, sort: str = "avg") -> dict[str, Any]:
-        result = self.get(f"/instances/{instance_id}/database/slow-queries", params={"sort": sort})
+        result = self.get(f"{API_PREFIX}/instances/{instance_id}/database/slow-queries", params={"sort": sort})
         return result if isinstance(result, dict) else {}
 
     def get_db_table_health(self, instance_id: str) -> dict[str, Any]:
-        result = self.get(f"/instances/{instance_id}/database/table-health")
+        result = self.get(f"{API_PREFIX}/instances/{instance_id}/database/table-health")
         return result if isinstance(result, dict) else {}
 
     def get_db_size(self, instance_id: str) -> dict[str, Any]:
-        result = self.get(f"/instances/{instance_id}/database/size")
+        result = self.get(f"{API_PREFIX}/instances/{instance_id}/database/size")
         return result if isinstance(result, dict) else {}
 
     # --- Log endpoints ---
@@ -244,7 +251,7 @@ class APIClient:
             params["start"] = start
         if end:
             params["end"] = end
-        result = self.get(f"/instances/{instance_id}/logs", params=params)
+        result = self.get(f"{API_PREFIX}/instances/{instance_id}/logs", params=params)
         if not isinstance(result, dict):
             return []
         items = result.get("data", {}).get("result", [])
@@ -267,13 +274,13 @@ class APIClient:
     # --- Metrics endpoints ---
 
     def get_metrics_summary(self, instance_id: str, metric: str = "all") -> dict[str, Any]:
-        result = self.get(f"/instances/{instance_id}/metrics/summary", params={"metric": metric})
+        result = self.get(f"{API_PREFIX}/instances/{instance_id}/metrics/summary", params={"metric": metric})
         if isinstance(result, dict):
             return result
         return {}
 
     def whoami(self) -> dict[str, Any]:
-        result = self.get("/auth/whoami")
+        result = self.get(f"{API_PREFIX}/auth/whoami")
         if isinstance(result, dict):
             return result
         return {}

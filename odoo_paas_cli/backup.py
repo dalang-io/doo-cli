@@ -114,6 +114,10 @@ def backup_restore(
     backup_id: Annotated[str, typer.Option("--backup-id", help="Backup UUID")],
     restore_name: Annotated[str, typer.Option("--restore-name", help="New restored instance name")],
     topology: Annotated[str, typer.Option("--topology", help="single or split")] = "single",
+    app_vm_count: Annotated[
+        Optional[int],
+        typer.Option("--app-vm-count", min=1, max=5, help="Number of app VMs for split topology"),
+    ] = None,
     output: Annotated[Optional[str], typer.Option("--output", "-o")] = None,
 ) -> None:
     state = _get_state()
@@ -129,6 +133,8 @@ def backup_restore(
             "db_ram_mb": 4096,
             "db_disk_gb": 40,
         })
+        if app_vm_count is not None:
+            payload["app_vm_count"] = app_vm_count
     else:
         payload.update({
             "single_vcpus": 4,

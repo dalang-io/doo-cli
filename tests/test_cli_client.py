@@ -8,22 +8,47 @@ from odoo_paas_cli.output import print_json
 
 def test_cli_list_instances_unwraps_response(monkeypatch):
     client = APIClient("http://example.test", "test-key")
-    monkeypatch.setattr(
-        client,
-        "get",
-        lambda path, **kwargs: {
+    captured: dict[str, object] = {}
+
+    def fake_get(path: str, **kwargs):
+        captured["path"] = path
+        captured["params"] = kwargs.get("params")
+        return {
             "instances": [
                 {"id": "inst-1", "name": "alpha"},
                 {"id": "inst-2", "name": "beta"},
             ],
             "total": 2,
-        },
+        }
+
+    monkeypatch.setattr(
+        client,
+        "get",
+        fake_get,
     )
 
     assert client.list_instances() == [
         {"id": "inst-1", "name": "alpha"},
         {"id": "inst-2", "name": "beta"},
     ]
+    assert captured["path"] == "/api/instances/"
+    assert captured["params"] == {}
+
+
+def test_cli_list_instances_passes_environment_filter(monkeypatch):
+    client = APIClient("http://example.test", "test-key")
+    captured: dict[str, object] = {}
+
+    def fake_get(path: str, **kwargs):
+        captured["path"] = path
+        captured["params"] = kwargs.get("params")
+        return {"instances": [], "total": 0}
+
+    monkeypatch.setattr(client, "get", fake_get)
+
+    assert client.list_instances(status="running", environment="staging") == []
+    assert captured["path"] == "/api/instances/"
+    assert captured["params"] == {"status": "running", "environment": "staging"}
 
 
 def test_cli_query_logs_flattens_loki_response(monkeypatch):
@@ -78,7 +103,7 @@ def test_cli_get_metrics_summary_passes_metric_param(monkeypatch):
 
     result = client.get_metrics_summary("inst-1", metric="cpu")
 
-    assert captured["path"] == "/instances/inst-1/metrics/summary"
+    assert captured["path"] == "/api/instances/inst-1/metrics/summary"
     assert captured["params"] == {"metric": "cpu"}
     assert result["metric"] == "cpu"
 
@@ -94,7 +119,7 @@ def test_cli_list_backups_uses_instance_backup_endpoint(monkeypatch):
     monkeypatch.setattr(client, "get", fake_get)
     result = client.list_backups("inst-1")
 
-    assert captured["path"] == "/instances/inst-1/backups"
+    assert captured["path"] == "/api/instances/inst-1/backups"
     assert result[0]["id"] == "backup-1"
 
 
@@ -114,6 +139,20 @@ def test_cli_restore_backup_posts_expected_payload(monkeypatch):
         {"name": "restore-alpha", "vm_topology": "single", "single_vcpus": 2, "single_ram_mb": 4096, "single_disk_gb": 40},
     )
 
-    assert captured["path"] == "/instances/inst-1/backups/backup-1/restore"
+    assert captured["path"] == "/api/instances/inst-1/backups/backup-1/restore"
     assert captured["json"]["name"] == "restore-alpha"
     assert result["status"] == "pending"
+
+
+def test_cli_whoami_uses_api_namespace(monkeypatch):
+    client = APIClient("http://example.test", "test-key")
+    captured: dict[str, object] = {}
+
+    def fake_get(path: str, **kwargs):
+        captured["path"] = path
+        return {"user": {"email": "user@example.com"}}
+
+    monkeypatch.setattr(client, "get", fake_get)
+
+    assert client.whoami()["user"]["email"] == "user@example.com"
+    assert captured["path"] == "/api/auth/whoami"

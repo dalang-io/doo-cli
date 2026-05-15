@@ -153,6 +153,10 @@ def instances_list(
         Optional[str],
         typer.Option("--status", help="Filter by status (running, stopped, etc.)"),
     ] = None,
+    environment: Annotated[
+        Optional[str],
+        typer.Option("--environment", help="Filter by environment (development, staging, production)"),
+    ] = None,
     output: Annotated[
         Optional[str],
         typer.Option("--output", "-o", help="Output format: table, json, yaml"),
@@ -165,7 +169,7 @@ def instances_list(
 
     try:
         with _make_client(state) as client:
-            instances = client.list_instances(status=status)
+            instances = client.list_instances(status=status, environment=environment)
     except AuthError as e:
         stderr.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(EXIT_AUTH)
@@ -228,6 +232,18 @@ def instances_create(
     edition: Annotated[str, typer.Option("--edition", help="community or enterprise")],
     postgres_version: Annotated[str, typer.Option("--postgres-version", help="PostgreSQL version (e.g. 17)")],
     environment: Annotated[str, typer.Option("--environment", help="staging or production")],
+    install_type: Annotated[
+        str,
+        typer.Option("--install-type", help="Odoo install type: docker or system"),
+    ] = "docker",
+    github_repository: Annotated[
+        Optional[str],
+        typer.Option("--github-repository", help="Optional GitHub repository name or slug"),
+    ] = None,
+    github_repository_clone_url: Annotated[
+        Optional[str],
+        typer.Option("--github-repository-clone-url", help="Optional Git clone URL"),
+    ] = None,
     size: Annotated[
         Optional[str],
         typer.Option("--size", help="Instance size: small, medium, large (for single topology)"),
@@ -239,6 +255,10 @@ def instances_create(
     app_size: Annotated[
         Optional[str],
         typer.Option("--app-size", help="App VM size (for split topology)"),
+    ] = None,
+    app_vm_count: Annotated[
+        Optional[int],
+        typer.Option("--app-vm-count", min=1, max=5, help="Number of app VMs for split topology"),
     ] = None,
     db_size: Annotated[
         Optional[str],
@@ -271,6 +291,7 @@ def instances_create(
         "name": name,
         "odoo_version": odoo_version,
         "odoo_edition": edition,
+        "odoo_install_type": install_type,
         "pg_version": postgres_version,
         "environment_type": environment,
         "vm_topology": topology or "single",
@@ -280,9 +301,15 @@ def instances_create(
             "expected_storage": "20-50gb",
         },
     }
+    if github_repository:
+        payload["github_repository"] = github_repository
+    if github_repository_clone_url:
+        payload["github_repository_clone_url"] = github_repository_clone_url
     if topology == "split":
         payload.update(_require_size(APP_SIZE_MAP, app_size, "--app-size"))
         payload.update(_require_size(DB_SIZE_MAP, db_size, "--db-size"))
+        if app_vm_count is not None:
+            payload["app_vm_count"] = app_vm_count
     else:
         payload.update(_require_size(SINGLE_SIZE_MAP, size, "--size"))
 

@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEFAULT_API_URL = "https://api.odoo.dalang.io"
+DEFAULT_API_URL = "https://app.odoo.dalang.io"
 CONFIG_DIR = Path.home() / ".config" / "doo-cli"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 

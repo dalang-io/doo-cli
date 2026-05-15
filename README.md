@@ -48,7 +48,7 @@ For CI or other non-interactive automation, you can pass an API key override so 
   with:
     python-version: "3.12"
     api-key: ${{ secrets.ODOO_PAAS_API_KEY }}
-    api-url: https://api.odoo.dalang.io
+    api-url: https://app.odoo.dalang.io
 
 - name: List instances
   run: doo-cli instances list
@@ -99,7 +99,7 @@ doo-cli metrics snapshot --instance my-staging
 
 ## Authentication
 
-The CLI uses `https://api.odoo.dalang.io` by default.
+The CLI uses `https://app.odoo.dalang.io` by default.
 
 | Method | Priority |
 |--------|----------|
@@ -141,6 +141,7 @@ Every command accepts these flags:
 # List all instances
 doo-cli instances list
 doo-cli instances list --status running
+doo-cli instances list --environment staging
 doo-cli instances list --output json
 
 # Get instance detail
@@ -154,9 +155,13 @@ doo-cli instances create \
   --edition community \
   --postgres-version 17 \
   --environment staging \
+  [--install-type docker|system] \
+  [--github-repository org/repo] \
+  [--github-repository-clone-url URL] \
   [--size small|medium|large] \
   [--topology single|split] \
   [--app-size SIZE] \
+  [--app-vm-count 1-5] \
   [--db-size SIZE] \
   [--region REGION] \
   [--wait] \
@@ -209,7 +214,7 @@ doo-cli metrics watch --instance my-prod --interval 5s
 doo-cli config show
 
 # Set values
-doo-cli config set api-url https://api.odoo.dalang.io
+doo-cli config set api-url https://app.odoo.dalang.io
 doo-cli config set default-instance my-prod
 doo-cli config set default-output json
 
@@ -231,7 +236,7 @@ The CLI is safe for non-interactive environments. In CI:
   uses: your-org/doo-cli@v1
   with:
     api-key: ${{ secrets.ODOO_PAAS_API_KEY }}
-    api-url: https://api.odoo.dalang.io
+    api-url: https://app.odoo.dalang.io
 
 - name: Provision staging instance
   run: |
@@ -280,7 +285,7 @@ Location: `~/.config/doo-cli/config.yaml` (permissions `0600`)
 ```yaml
 version: 1
 api_key: your-api-key-here
-api_url: https://api.odoo.dalang.io
+api_url: https://app.odoo.dalang.io
 default_instance: my-prod
 default_output: table
 ```
